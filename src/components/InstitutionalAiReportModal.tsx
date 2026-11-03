@@ -461,6 +461,17 @@ export const InstitutionalAiReportModal: React.FC<InstitutionalAiReportModalProp
                 சேமித்து பகுப்பாய்வு செய்க
               </button>
             </div>
+            {customKeyInput.trim().startsWith('AQ.') && (
+              <div className="rounded-lg bg-amber-100/90 border border-amber-300 p-2 text-[11px] text-amber-950 space-y-0.5">
+                <span className="font-bold flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
+                  கவனிக்க: இது "AQ." எனத் தொடங்கும் OAuth Token. "AIzaSy..." எனத் தொடங்கும் Gemini API Key தேவை.
+                </span>
+                <p className="text-[10.5px] text-amber-800">
+                  Google AI Studio (aistudio.google.com/app/apikey) தளத்தில் "Create API Key" வழியே இலவச "AIzaSy..." கீயைப் பெறலாம்.
+                </p>
+              </div>
+            )}
             <p className="text-[11px] text-indigo-800">
               இலவச API Key பெற:{' '}
               <a
@@ -1021,8 +1032,11 @@ export const InstitutionalAiReportModal: React.FC<InstitutionalAiReportModalProp
         {/* Modal Footer */}
         <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3">
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-            <span>AI Powered by Google Gemini 3.8 Flash</span>
+            <span>
+              {errorMsg
+                ? 'பிரதேச செயலக தபால் புள்ளிவிவர பகுப்பாய்வு (Institutional Statistical Analysis)'
+                : 'AI Powered by Google Gemini'}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">

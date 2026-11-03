@@ -74,19 +74,34 @@ export function sanitizeScanError(rawInput?: any): FormattedScanErrorDetail {
   }
 
   if (
+    lower.includes('access_token_type_unsupported') ||
+    lower.includes('unauthenticated') ||
     lower.includes('permission_denied') ||
     lower.includes('api_key_invalid') ||
     lower.includes('api key not valid') ||
-    lower.includes('unregistered callers')
+    lower.includes('unregistered callers') ||
+    lower.includes('aq.') ||
+    lower.includes('ya29.')
   ) {
+    const isOAuthToken =
+      lower.includes('access_token_type_unsupported') ||
+      lower.includes('token_type') ||
+      lower.includes('aq.') ||
+      lower.includes('ya29.');
     return {
       type: 'api_key_invalid',
-      title: 'Gemini API Key Authentication Failed',
-      message: 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired Key).',
-      instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
-      instructionEnglish: 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
+      title: isOAuthToken ? 'Invalid Key: OAuth Token Provided' : 'Gemini API Key Authentication Failed',
+      message: isOAuthToken
+        ? 'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் OAuth Token ஆகும். AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் Google AI Studio API Key தேவை.'
+        : 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired Key).',
+      instructionTamil: isOAuthToken
+        ? 'Google AI Studio (aistudio.google.com/app/apikey) தளத்தில் "Create API Key" கொடுத்து "AIzaSy..." எனத் தொடங்கும் புதிய இலவச Gemini API Key-ஐப் பெற்று இங்கு உள்ளிடவும்.'
+        : 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
+      instructionEnglish: isOAuthToken
+        ? 'The key provided is an OAuth access token (starts with "AQ..."). Gemini OCR requires an API key starting with "AIzaSy..." from Google AI Studio.'
+        : 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
       actionUrl: 'https://aistudio.google.com/app/apikey',
-      actionLabel: 'Get API Key',
+      actionLabel: 'Get AIzaSy API Key',
     };
   }
 

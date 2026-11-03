@@ -6,6 +6,7 @@ import {
   Building2,
   FileText,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   Calendar,
   Send,
@@ -107,6 +108,26 @@ export const LetterRegisterModal: React.FC<LetterRegisterModalProps> = ({
       setStoredGeminiApiKey(clean);
       setHasStoredKey(true);
       setIsKeyInputOpen(false);
+
+      if (clean.startsWith('AQ.') || clean.startsWith('ya29.')) {
+        setScanErrorMsg(
+          'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் OAuth Token ஆகும். AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் Google AI Studio API Key தேவை.'
+        );
+        setScanErrorDetail({
+          type: 'api_key_invalid',
+          title: 'Invalid Key Format: OAuth Token ("AQ...")',
+          message:
+            'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் Google OAuth Token ஆகும். Gemini AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் API Key தேவை.',
+          instructionTamil:
+            'Google AI Studio (aistudio.google.com/app/apikey) இல் சென்று "Create API Key" கொடுத்து "AIzaSy..." எனத் தொடங்கும் இலவச API Key-ஐப் பெறவும்.',
+          instructionEnglish:
+            'The key provided is an OAuth access token ("AQ..."). Gemini OCR requires an API key starting with "AIzaSy..." from Google AI Studio.',
+          actionUrl: 'https://aistudio.google.com/app/apikey',
+          actionLabel: 'Get AIzaSy API Key',
+        });
+        return;
+      }
+
       setScanErrorMsg(null);
       setScanErrorDetail(null);
       if (image) {
@@ -694,8 +715,27 @@ export const LetterRegisterModal: React.FC<LetterRegisterModalProps> = ({
                           சேமி & ஸ்கேன் (Save & Scan)
                         </button>
                       </div>
+                      {apiKeyInput.trim().startsWith('AQ.') && (
+                        <div className="rounded-lg bg-red-50 border border-red-200 p-2.5 text-[11px] text-red-800 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-red-900">
+                            <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                            <span>தவறான Key வடிவம்: இது Google OAuth Token ஆகும் ("AQ...")</span>
+                          </div>
+                          <p className="leading-snug">
+                            Gemini AI OCR ஸ்கேனருக்கு <strong>"AIzaSy..."</strong> எனத் தொடங்கும் Google AI Studio API Key தேவை.
+                          </p>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900 underline"
+                          >
+                            இலவச AIzaSy Key பெற இங்கே அழுத்தவும் (aistudio.google.com/app/apikey) <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        </div>
+                      )}
                       <p className="text-[11px] text-gray-500">
-                        இங்கே சேமிக்கப்படும் API Key உங்கள் உலாவியில் மட்டுமே பாதுகாப்பாகப் பயன்படுத்தப்படும். Vercel அல்லது எந்தவொரு கணினியிலும் உடனடியாக ஸ்கேன் செய்ய உதவும்.
+                        இங்கே சேமிக்கப்படும் API Key உங்கள் உலாவியில் மட்டுமே பாதுகாப்பாகப் பயன்படுத்தப்படும். Google AI Studio-வில் ("AIzaSy...") எனத் தொடங்கும் இலவச API Key-ஐப் பெறலாம்.
                       </p>
                     </div>
                   ) : null}

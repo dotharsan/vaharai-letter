@@ -275,24 +275,42 @@ export function parseGeminiError(error: any): FormattedScanError {
     };
   }
 
-  // 2. Invalid API Key / Permission Denied
+  // 2. Invalid API Key / Token Unsupported / Permission Denied (401 / 403)
   if (
+    combined.includes('access_token_type_unsupported') ||
+    combined.includes('unauthenticated') ||
     combined.includes('permission_denied') ||
     combined.includes('api_key_invalid') ||
     combined.includes('api key not valid') ||
     combined.includes('unregistered callers') ||
     combined.includes('gemini_key_not_configured') ||
+    error?.status === 'UNAUTHENTICATED' ||
     error?.status === 'PERMISSION_DENIED' ||
-    error?.code === 403
+    error?.code === 401 ||
+    error?.code === 403 ||
+    (error as any)?.status === 401
   ) {
+    const isOAuthToken =
+      combined.includes('access_token_type_unsupported') ||
+      combined.includes('token_type') ||
+      combined.includes('aq.') ||
+      combined.includes('ya29.');
     return {
       type: 'api_key_invalid',
-      title: 'Gemini API Key Authentication Failed',
-      message: 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired API Key).',
-      instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
-      instructionEnglish: 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
+      title: isOAuthToken
+        ? 'Gemini API Key Setup • OAuth Token Not Supported'
+        : 'Gemini API Key Authentication Failed (401 / 403)',
+      message: isOAuthToken
+        ? 'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் OAuth Token ஆகும். Gemini AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் Google AI Studio API Key தேவை.'
+        : 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired API Key).',
+      instructionTamil: isOAuthToken
+        ? 'தயவுசெய்து aistudio.google.com/app/apikey பக்கத்திற்குச் சென்று "Create API Key" பொத்தானை அழுத்தி "AIzaSy..." எனத் தொடங்கும் புதிய இலவச Gemini API Key-ஐப் பெற்று இங்கு உள்ளிடவும்.'
+        : 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
+      instructionEnglish: isOAuthToken
+        ? 'The key provided is an OAuth access token (starts with "AQ..."). Gemini OCR requires an API key starting with "AIzaSy..." from Google AI Studio.'
+        : 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
       actionUrl: 'https://aistudio.google.com/app/apikey',
-      actionLabel: 'Get API Key',
+      actionLabel: 'Get AIzaSy API Key',
     };
   }
 
