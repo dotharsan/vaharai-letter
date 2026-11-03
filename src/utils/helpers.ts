@@ -868,13 +868,13 @@ export const compressImageToTarget = async (
     });
   }
 
-  // Iteratively adjust JPEG quality to fit under targetKb
-  let quality = 0.85;
+  // High efficiency single-pass or fast 2-step compression to avoid blocking browser main thread
+  let quality = 0.72;
   let dataUrl = canvas.toDataURL('image/jpeg', quality);
   let sizeKb = Math.round((dataUrl.length * 3) / 4 / 1024);
 
-  while (sizeKb > targetKb && quality > 0.2) {
-    quality -= 0.12;
+  if (sizeKb > targetKb) {
+    quality = 0.52;
     dataUrl = canvas.toDataURL('image/jpeg', quality);
     sizeKb = Math.round((dataUrl.length * 3) / 4 / 1024);
   }

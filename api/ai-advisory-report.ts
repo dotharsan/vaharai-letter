@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 import {
   type DivisionStatInput,
@@ -24,9 +24,9 @@ export type {
 export { buildDeterministicAdvisoryReport };
 
 export const ADVISORY_MODELS = [
-  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
+  'gemini-flash-latest',
 ];
 
 export async function generateInstitutionalAdvisoryReport(
@@ -96,11 +96,19 @@ ${JSON.stringify(metrics.samplePendingLetters || [], null, 2)}
 
   for (const modelName of ADVISORY_MODELS) {
     try {
+      let thinkingConfig: { thinkingLevel: ThinkingLevel } | undefined = undefined;
+      if (modelName === 'gemini-3.1-flash-lite') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.MINIMAL };
+      } else if (modelName === 'gemini-3.8-flash') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: promptText,
         config: {
           responseMimeType: 'application/json',
+          ...(thinkingConfig ? { thinkingConfig } : {}),
           responseSchema: {
             type: Type.OBJECT,
             properties: {

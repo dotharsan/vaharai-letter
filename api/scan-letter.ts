@@ -7,10 +7,11 @@ if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
 }
 
 // Candidate models ordered by speed, OCR vision capability and reliability
+// Prioritize gemini-3.1-flash-lite for ultra-fast, sub-second multimodal document extraction
 export const CANDIDATE_MODELS = [
-  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
+  'gemini-flash-latest',
 ];
 
 export interface ScannedLetterPayload {
@@ -128,6 +129,14 @@ Return strictly in JSON format matching the schema.`;
 
   for (const modelName of CANDIDATE_MODELS) {
     try {
+      // Configure minimal/low thinking latency for ultra-fast document OCR
+      let thinkingConfig: { thinkingLevel: ThinkingLevel } | undefined = undefined;
+      if (modelName === 'gemini-3.1-flash-lite') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.MINIMAL };
+      } else if (modelName === 'gemini-3.8-flash') {
+        thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: {
@@ -145,6 +154,8 @@ Return strictly in JSON format matching the schema.`;
         },
         config: {
           responseMimeType: 'application/json',
+          ...(thinkingConfig ? { thinkingConfig } : {}),
+          systemInstruction: 'You are an ultra-fast high-accuracy OCR postal document scanner for the Divisional Secretariat Vaharai. Extract document fields directly into JSON without unnecessary reasoning delay.',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
