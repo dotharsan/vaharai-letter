@@ -2,13 +2,15 @@ import type { Request, Response } from 'express';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 
-dotenv.config();
+if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+  dotenv.config();
+}
 
-// Candidate models ordered by speed and OCR vision capability
+// Candidate models ordered by speed, OCR vision capability and reliability
 export const CANDIDATE_MODELS = [
+  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
-  'gemini-flash-latest',
 ];
 
 export interface ScannedLetterPayload {
@@ -61,7 +63,19 @@ export async function scanLetterDocument(params: {
   mimeType?: string;
   apiKey?: string;
 }): Promise<ScannedLetterPayload> {
-  const { imageBase64, mimeType = 'image/jpeg', apiKey = process.env.GEMINI_API_KEY } = params;
+  const {
+    imageBase64,
+    mimeType = 'image/jpeg',
+    apiKey = (
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.NEXT_PUBLIC_API_KEY ||
+      ''
+    ).trim(),
+  } = params;
 
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || !apiKey.trim()) {
     throw new Error('GEMINI_KEY_NOT_CONFIGURED');
@@ -130,17 +144,6 @@ Return strictly in JSON format matching the schema.`;
           ],
         },
         config: {
-          temperature: 0.1,
-          ...(modelName.startsWith('gemini-3')
-            ? {
-                thinkingConfig: {
-                  thinkingLevel:
-                    modelName === 'gemini-3.1-flash-lite'
-                      ? ThinkingLevel.MINIMAL
-                      : ThinkingLevel.LOW,
-                },
-              }
-            : {}),
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -338,33 +341,66 @@ export function parseGeminiError(error: any): FormattedScanError {
 }
 
 /**
- * Express / HTTP route handler for /api/scan-letter
+ * Express / HTTP route handler for /api/scan-letter (Works in Express, Vercel, and Netlify)
  */
 export async function scanLetterHandler(req: Request, res: Response): Promise<void> {
   try {
-    const effectiveKey = (process.env.GEMINI_API_KEY || '').trim();
+    // 1. Universal CORS headers for seamless cross-domain & Vercel deployment
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Gemini-Api-Key');
 
-    // If API key is not configured on the server environment, handle gracefully without 500
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
+    // 2. Parse body safely if stringified
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        body = {};
+      }
+    }
+
+    // 3. Resolve API Key from multiple potential sources
+    const headerKey = (req.headers?.['x-gemini-api-key'] as string) || '';
+    const bodyKey = (body && typeof body === 'object' && body.apiKey ? String(body.apiKey) : '') || '';
+    const envKey = (
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.NEXT_PUBLIC_API_KEY ||
+      ''
+    ).trim();
+
+    const effectiveKey = (headerKey || bodyKey || envKey).trim();
+
+    // If API key is not configured on the server environment and not supplied by client:
     if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY') {
       res.json({
         success: false,
         apiKeyMissing: true,
         errorType: 'api_key_invalid',
-        message: 'AI சேவையக API Key இணைக்கப்படவில்லை. கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது, தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.',
+        message: 'Google Gemini API Key இணைக்கப்படவில்லை. கீழே உள்ள "🔑 API Key உள்ளிடவும்" பொத்தானை அழுத்தி நேரடியாக உள்ளிட்டு ஸ்கேன் செய்யலாம்.',
         errorDetail: {
           type: 'api_key_invalid',
-          title: 'GEMINI_API_KEY Not Configured',
+          title: 'GEMINI_API_KEY Setup Required',
           message: 'சேவையகத்தில் GEMINI_API_KEY இன்னும் அமைக்கப்படவில்லை.',
-          instructionTamil: 'Netlify Dashboard > Site configuration > Environment variables இல் GEMINI_API_KEY ஐ உள்ளிடவும்.',
-          instructionEnglish: 'Add GEMINI_API_KEY in your hosting environment variables.',
+          instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் இலவசமாக பெறப்பட்ட API Key ஐ இங்கு நேரடியாக உள்ளிடலாம், அல்லது Vercel Project Settings > Environment Variables இல் GEMINI_API_KEY ஆக சேர்க்கலாம்.\nகுறிப்பு: கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டும் பதிவு செய்யலாம்.',
+          instructionEnglish: 'Gemini API key is not configured. You can paste your API key directly in this window, or add GEMINI_API_KEY in your Vercel/hosting environment variables.',
           actionUrl: 'https://aistudio.google.com/app/apikey',
-          actionLabel: 'Create API Key',
+          actionLabel: 'Get Free API Key',
         },
       });
       return;
     }
 
-    const { imageBase64, mimeType } = req.body || {};
+    const { imageBase64, mimeType } = body || {};
 
     if (!imageBase64) {
       res.status(400).json({ success: false, error: 'Image base64 data is required' });

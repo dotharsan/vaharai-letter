@@ -111,15 +111,74 @@ export function sanitizeScanError(rawInput?: any): FormattedScanErrorDetail {
   };
 }
 
+export const GEMINI_STORAGE_KEY = 'vaharai_gemini_api_key';
+
+export function getStoredGeminiApiKey(): string {
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = (localStorage.getItem(GEMINI_STORAGE_KEY) || '').trim();
+      if (stored) return stored;
+    }
+  } catch {}
+
+  try {
+    // Check client-exposed env vars (baked in by Vite/Vercel)
+    const nextPublic = (import.meta as any)?.env?.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (nextPublic && typeof nextPublic === 'string' && nextPublic.trim() && nextPublic.trim() !== 'MY_GEMINI_API_KEY') {
+      return nextPublic.trim();
+    }
+    const viteKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
+    if (viteKey && typeof viteKey === 'string' && viteKey.trim() && viteKey.trim() !== 'MY_GEMINI_API_KEY') {
+      return viteKey.trim();
+    }
+  } catch {}
+
+  return '';
+}
+
+export function setStoredGeminiApiKey(key: string): void {
+  try {
+    if (typeof window !== 'undefined') {
+      const clean = key.trim();
+      if (clean) {
+        localStorage.setItem(GEMINI_STORAGE_KEY, clean);
+      } else {
+        localStorage.removeItem(GEMINI_STORAGE_KEY);
+      }
+    }
+  } catch {}
+}
+
+export function clearStoredGeminiApiKey(): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(GEMINI_STORAGE_KEY);
+    }
+  } catch {}
+}
+
 /**
- * Sends letter image to backend Gemini OCR scanner with automatic fallback
+ * Sends letter image to backend Gemini OCR scanner with automatic fallback and optional client-stored key
  */
 export async function scanLetterWithAI(
   imageBase64: string,
-  mimeType = 'image/jpeg'
+  mimeType = 'image/jpeg',
+  explicitApiKey?: string
 ): Promise<ScanResult> {
-  const payload = JSON.stringify({ imageBase64, mimeType });
-  const headers = { 'Content-Type': 'application/json' };
+  const activeKey = (explicitApiKey || getStoredGeminiApiKey()).trim();
+
+  const payload = JSON.stringify({
+    imageBase64,
+    mimeType,
+    apiKey: activeKey || undefined,
+  });
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (activeKey) {
+    headers['x-gemini-api-key'] = activeKey;
+  }
 
   // Try standard Express route /api/scan-letter, then Netlify functions route if 404
   const endpoints = ['/api/scan-letter', '/.netlify/functions/scan-letter'];
@@ -142,7 +201,11 @@ export async function scanLetterWithAI(
         const detail = resJson.errorDetail || sanitizeScanError(resJson.error || resJson.message);
         return {
           success: false,
-          apiKeyMissing: Boolean(resJson.apiKeyMissing || detail.type === 'billing_required' || detail.type === 'api_key_invalid'),
+          apiKeyMissing: Boolean(
+            resJson.apiKeyMissing ||
+              detail.type === 'billing_required' ||
+              detail.type === 'api_key_invalid'
+          ),
           errorType: resJson.errorType || detail.type,
           error: detail.message,
           errorDetail: detail,
@@ -158,7 +221,9 @@ export async function scanLetterWithAI(
     }
   }
 
-  const fallbackDetail = sanitizeScanError('கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.');
+  const fallbackDetail = sanitizeScanError(
+    'கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.'
+  );
   return {
     success: false,
     error: fallbackDetail.message,

@@ -30,7 +30,13 @@ import {
   classifySubjectCategory,
   SUBJECT_CATEGORIES_CONFIG,
 } from '../utils/helpers';
-import { scanLetterWithAI, FormattedScanErrorDetail } from '../utils/aiScanner';
+import {
+  scanLetterWithAI,
+  FormattedScanErrorDetail,
+  getStoredGeminiApiKey,
+  setStoredGeminiApiKey,
+  clearStoredGeminiApiKey,
+} from '../utils/aiScanner';
 import { ForwardSelect } from './ForwardUserSelect';
 import { CameraCaptureModal } from './CameraCaptureModal';
 
@@ -89,6 +95,34 @@ export const LetterRegisterModal: React.FC<LetterRegisterModalProps> = ({
   const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
   const [preservedUserFields, setPreservedUserFields] = useState<string[]>([]);
   const [aiExtractedData, setAiExtractedData] = useState<any>(null);
+
+  // Gemini API Key in-app setup states (for Vercel & instant client access)
+  const [apiKeyInput, setApiKeyInput] = useState<string>(() => getStoredGeminiApiKey());
+  const [isKeyInputOpen, setIsKeyInputOpen] = useState(false);
+  const [hasStoredKey, setHasStoredKey] = useState<boolean>(() => Boolean(getStoredGeminiApiKey()));
+
+  const handleSaveApiKey = () => {
+    const clean = apiKeyInput.trim();
+    if (clean) {
+      setStoredGeminiApiKey(clean);
+      setHasStoredKey(true);
+      setIsKeyInputOpen(false);
+      setScanErrorMsg(null);
+      setScanErrorDetail(null);
+      if (image) {
+        void triggerScan(image);
+      }
+    } else {
+      clearStoredGeminiApiKey();
+      setHasStoredKey(false);
+    }
+  };
+
+  const handleClearApiKey = () => {
+    clearStoredGeminiApiKey();
+    setApiKeyInput('');
+    setHasStoredKey(false);
+  };
   
   // Track fields manually edited by the letter registrar to NEVER overwrite their changes
   const [userEditedFields, setUserEditedFields] = useState<Set<string>>(new Set());
@@ -627,8 +661,66 @@ export const LetterRegisterModal: React.FC<LetterRegisterModalProps> = ({
                     </button>
                   </div>
 
+                  {/* Inline API Key Entry Form for instant Vercel & local usage */}
+                  {isKeyInputOpen ? (
+                    <div className="mt-3 p-3 bg-white rounded-xl border border-amber-300 shadow-inner space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                          <Key className="h-3.5 w-3.5 text-amber-600" />
+                          <span>Google Gemini API Key-ஐ இங்கே உள்ளிடவும்:</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsKeyInputOpen(false)}
+                          className="text-gray-400 hover:text-gray-700 text-xs"
+                        >
+                          ✕ மூடுக
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={apiKeyInput}
+                          onChange={(e) => setApiKeyInput(e.target.value)}
+                          placeholder="AIzaSy... (Paste Gemini API Key here)"
+                          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-mono text-gray-900 focus:border-indigo-600 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveApiKey}
+                          disabled={!apiKeyInput.trim()}
+                          className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition shadow-xs whitespace-nowrap"
+                        >
+                          சேமி & ஸ்கேன் (Save & Scan)
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        இங்கே சேமிக்கப்படும் API Key உங்கள் உலாவியில் மட்டுமே பாதுகாப்பாகப் பயன்படுத்தப்படும். Vercel அல்லது எந்தவொரு கணினியிலும் உடனடியாக ஸ்கேன் செய்ய உதவும்.
+                      </p>
+                    </div>
+                  ) : null}
+
                   <div className="mt-2.5 pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setIsKeyInputOpen(!isKeyInputOpen)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-amber-400 bg-amber-100/80 hover:bg-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-950 shadow-2xs transition"
+                      >
+                        <Key className="h-3 w-3 text-amber-800" />
+                        <span>🔑 API Key உள்ளிடவும் (Paste Key)</span>
+                      </button>
+
+                      {hasStoredKey && (
+                        <button
+                          type="button"
+                          onClick={handleClearApiKey}
+                          className="text-[10px] text-red-600 hover:underline"
+                        >
+                          (Clear Key)
+                        </button>
+                      )}
+
                       <a
                         href="https://aistudio.google.com/app/apikey"
                         target="_blank"
