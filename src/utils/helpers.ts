@@ -499,42 +499,6 @@ export const repairLetterRecord = (l: any): Letter | null => {
     }
   }
 
-  // 6. Inward No Validation & Cleanup (கடித இலக்கம் சீரமைப்பு):
-  // Clean cases where inwardNo was mistakenly copied from fromWhom (sender's name or institution)
-  const normInward = String(copy.inwardNo || '').trim();
-  const normSender = String(copy.fromWhom || '').trim();
-  if (normInward) {
-    const isSameAsSender =
-      Boolean(normSender) &&
-      normInward.toLowerCase() === normSender.toLowerCase();
-    const isSenderNameInInward =
-      Boolean(normSender) &&
-      normInward.length > 3 &&
-      !/[0-9]/.test(normInward) &&
-      normSender.toLowerCase().includes(normInward.toLowerCase());
-    const isInvalidInwardVal =
-      normInward === 'No' ||
-      normInward === 'null' ||
-      normInward === 'undefined' ||
-      normInward === 'Normal Post' ||
-      normInward === 'Registered Post' ||
-      normInward === 'General';
-
-    if (isSameAsSender || isSenderNameInInward || isInvalidInwardVal) {
-      copy.inwardNo = '-';
-    }
-  } else {
-    copy.inwardNo = '-';
-  }
-
-  // Ensure image and imageSizeKb are preserved
-  if (l.image && !copy.image) {
-    copy.image = l.image;
-  }
-  if (l.imageSizeKb && !copy.imageSizeKb) {
-    copy.imageSizeKb = l.imageSizeKb;
-  }
-
   return copy as Letter;
 };
 
@@ -868,13 +832,13 @@ export const compressImageToTarget = async (
     });
   }
 
-  // High efficiency single-pass or fast 2-step compression to avoid blocking browser main thread
-  let quality = 0.72;
+  // Iteratively adjust JPEG quality to fit under targetKb
+  let quality = 0.85;
   let dataUrl = canvas.toDataURL('image/jpeg', quality);
   let sizeKb = Math.round((dataUrl.length * 3) / 4 / 1024);
 
-  if (sizeKb > targetKb) {
-    quality = 0.52;
+  while (sizeKb > targetKb && quality > 0.2) {
+    quality -= 0.12;
     dataUrl = canvas.toDataURL('image/jpeg', quality);
     sizeKb = Math.round((dataUrl.length * 3) / 4 / 1024);
   }

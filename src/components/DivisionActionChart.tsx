@@ -11,7 +11,6 @@ import {
   FileSpreadsheet,
   Printer,
   ChevronDown,
-  Sparkles,
 } from 'lucide-react';
 import { Letter, LetterAction, User } from '../types';
 import { DIVISIONS } from '../data/initialData';
@@ -23,7 +22,6 @@ interface DivisionActionChartProps {
   currentUser: User;
   onFilterByStatus?: (status: string) => void;
   onFilterByDivision?: (division: string) => void;
-  onOpenAiReport?: () => void;
   currentStatusFilter?: string;
 }
 
@@ -33,7 +31,6 @@ export const DivisionActionChart: React.FC<DivisionActionChartProps> = ({
   currentUser,
   onFilterByStatus,
   onFilterByDivision,
-  onOpenAiReport,
   currentStatusFilter = 'All',
 }) => {
   const usersMap = new Map<string, User>(allUsers.map((u) => [u.User_ID, u]));
@@ -210,18 +207,6 @@ export const DivisionActionChart: React.FC<DivisionActionChartProps> = ({
               All Divisions Grid
             </button>
           </div>
-
-          {onOpenAiReport && (
-            <button
-              type="button"
-              onClick={onOpenAiReport}
-              className="inline-flex items-center gap-1 rounded-lg bg-linear-to-r from-violet-600 to-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white hover:from-violet-700 hover:to-indigo-700 transition shadow-2xs"
-              title="நிறுவன மேம்பாடு மற்றும் குறைபாடுகள் குறித்த AI அறிக்கை"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-              <span>AI அறிக்கை</span>
-            </button>
-          )}
 
           <button
             type="button"

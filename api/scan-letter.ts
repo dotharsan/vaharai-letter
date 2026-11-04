@@ -2,12 +2,9 @@ import type { Request, Response } from 'express';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 
-if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
-  dotenv.config();
-}
+dotenv.config();
 
-// Candidate models ordered by speed, OCR vision capability and reliability
-// Prioritize gemini-3.1-flash-lite for ultra-fast, sub-second multimodal document extraction
+// Candidate models ordered by speed and OCR vision capability
 export const CANDIDATE_MODELS = [
   'gemini-3.1-flash-lite',
   'gemini-3.8-flash',
@@ -64,19 +61,7 @@ export async function scanLetterDocument(params: {
   mimeType?: string;
   apiKey?: string;
 }): Promise<ScannedLetterPayload> {
-  const {
-    imageBase64,
-    mimeType = 'image/jpeg',
-    apiKey = (
-      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      process.env.API_KEY ||
-      process.env.VITE_GEMINI_API_KEY ||
-      process.env.NEXT_PUBLIC_API_KEY ||
-      ''
-    ).trim(),
-  } = params;
+  const { imageBase64, mimeType = 'image/jpeg', apiKey = process.env.GEMINI_API_KEY } = params;
 
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || !apiKey.trim()) {
     throw new Error('GEMINI_KEY_NOT_CONFIGURED');
@@ -129,14 +114,6 @@ Return strictly in JSON format matching the schema.`;
 
   for (const modelName of CANDIDATE_MODELS) {
     try {
-      // Configure minimal/low thinking latency for ultra-fast document OCR
-      let thinkingConfig: { thinkingLevel: ThinkingLevel } | undefined = undefined;
-      if (modelName === 'gemini-3.1-flash-lite') {
-        thinkingConfig = { thinkingLevel: ThinkingLevel.MINIMAL };
-      } else if (modelName === 'gemini-3.8-flash') {
-        thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
-      }
-
       const response = await ai.models.generateContent({
         model: modelName,
         contents: {
@@ -153,9 +130,18 @@ Return strictly in JSON format matching the schema.`;
           ],
         },
         config: {
+          temperature: 0.1,
+          ...(modelName.startsWith('gemini-3')
+            ? {
+                thinkingConfig: {
+                  thinkingLevel:
+                    modelName === 'gemini-3.1-flash-lite'
+                      ? ThinkingLevel.MINIMAL
+                      : ThinkingLevel.LOW,
+                },
+              }
+            : {}),
           responseMimeType: 'application/json',
-          ...(thinkingConfig ? { thinkingConfig } : {}),
-          systemInstruction: 'You are an ultra-fast high-accuracy OCR postal document scanner for the Divisional Secretariat Vaharai. Extract document fields directly into JSON without unnecessary reasoning delay.',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -286,42 +272,24 @@ export function parseGeminiError(error: any): FormattedScanError {
     };
   }
 
-  // 2. Invalid API Key / Token Unsupported / Permission Denied (401 / 403)
+  // 2. Invalid API Key / Permission Denied
   if (
-    combined.includes('access_token_type_unsupported') ||
-    combined.includes('unauthenticated') ||
     combined.includes('permission_denied') ||
     combined.includes('api_key_invalid') ||
     combined.includes('api key not valid') ||
     combined.includes('unregistered callers') ||
     combined.includes('gemini_key_not_configured') ||
-    error?.status === 'UNAUTHENTICATED' ||
     error?.status === 'PERMISSION_DENIED' ||
-    error?.code === 401 ||
-    error?.code === 403 ||
-    (error as any)?.status === 401
+    error?.code === 403
   ) {
-    const isOAuthToken =
-      combined.includes('access_token_type_unsupported') ||
-      combined.includes('token_type') ||
-      combined.includes('aq.') ||
-      combined.includes('ya29.');
     return {
       type: 'api_key_invalid',
-      title: isOAuthToken
-        ? 'Gemini API Key Setup • OAuth Token Not Supported'
-        : 'Gemini API Key Authentication Failed (401 / 403)',
-      message: isOAuthToken
-        ? 'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் OAuth Token ஆகும். Gemini AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் Google AI Studio API Key தேவை.'
-        : 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired API Key).',
-      instructionTamil: isOAuthToken
-        ? 'தயவுசெய்து aistudio.google.com/app/apikey பக்கத்திற்குச் சென்று "Create API Key" பொத்தானை அழுத்தி "AIzaSy..." எனத் தொடங்கும் புதிய இலவச Gemini API Key-ஐப் பெற்று இங்கு உள்ளிடவும்.'
-        : 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
-      instructionEnglish: isOAuthToken
-        ? 'The key provided is an OAuth access token (starts with "AQ..."). Gemini OCR requires an API key starting with "AIzaSy..." from Google AI Studio.'
-        : 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
+      title: 'Gemini API Key Authentication Failed',
+      message: 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired API Key).',
+      instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
+      instructionEnglish: 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
       actionUrl: 'https://aistudio.google.com/app/apikey',
-      actionLabel: 'Get AIzaSy API Key',
+      actionLabel: 'Get API Key',
     };
   }
 
@@ -370,66 +338,33 @@ export function parseGeminiError(error: any): FormattedScanError {
 }
 
 /**
- * Express / HTTP route handler for /api/scan-letter (Works in Express, Vercel, and Netlify)
+ * Express / HTTP route handler for /api/scan-letter
  */
 export async function scanLetterHandler(req: Request, res: Response): Promise<void> {
   try {
-    // 1. Universal CORS headers for seamless cross-domain & Vercel deployment
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Gemini-Api-Key');
+    const effectiveKey = (process.env.GEMINI_API_KEY || '').trim();
 
-    if (req.method === 'OPTIONS') {
-      res.status(200).end();
-      return;
-    }
-
-    // 2. Parse body safely if stringified
-    let body = req.body;
-    if (typeof body === 'string') {
-      try {
-        body = JSON.parse(body);
-      } catch {
-        body = {};
-      }
-    }
-
-    // 3. Resolve API Key from multiple potential sources
-    const headerKey = (req.headers?.['x-gemini-api-key'] as string) || '';
-    const bodyKey = (body && typeof body === 'object' && body.apiKey ? String(body.apiKey) : '') || '';
-    const envKey = (
-      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      process.env.API_KEY ||
-      process.env.VITE_GEMINI_API_KEY ||
-      process.env.NEXT_PUBLIC_API_KEY ||
-      ''
-    ).trim();
-
-    const effectiveKey = (headerKey || bodyKey || envKey).trim();
-
-    // If API key is not configured on the server environment and not supplied by client:
+    // If API key is not configured on the server environment, handle gracefully without 500
     if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY') {
       res.json({
         success: false,
         apiKeyMissing: true,
         errorType: 'api_key_invalid',
-        message: 'Google Gemini API Key இணைக்கப்படவில்லை. கீழே உள்ள "🔑 API Key உள்ளிடவும்" பொத்தானை அழுத்தி நேரடியாக உள்ளிட்டு ஸ்கேன் செய்யலாம்.',
+        message: 'AI சேவையக API Key இணைக்கப்படவில்லை. கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது, தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.',
         errorDetail: {
           type: 'api_key_invalid',
-          title: 'GEMINI_API_KEY Setup Required',
+          title: 'GEMINI_API_KEY Not Configured',
           message: 'சேவையகத்தில் GEMINI_API_KEY இன்னும் அமைக்கப்படவில்லை.',
-          instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் இலவசமாக பெறப்பட்ட API Key ஐ இங்கு நேரடியாக உள்ளிடலாம், அல்லது Vercel Project Settings > Environment Variables இல் GEMINI_API_KEY ஆக சேர்க்கலாம்.\nகுறிப்பு: கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டும் பதிவு செய்யலாம்.',
-          instructionEnglish: 'Gemini API key is not configured. You can paste your API key directly in this window, or add GEMINI_API_KEY in your Vercel/hosting environment variables.',
+          instructionTamil: 'Netlify Dashboard > Site configuration > Environment variables இல் GEMINI_API_KEY ஐ உள்ளிடவும்.',
+          instructionEnglish: 'Add GEMINI_API_KEY in your hosting environment variables.',
           actionUrl: 'https://aistudio.google.com/app/apikey',
-          actionLabel: 'Get Free API Key',
+          actionLabel: 'Create API Key',
         },
       });
       return;
     }
 
-    const { imageBase64, mimeType } = body || {};
+    const { imageBase64, mimeType } = req.body || {};
 
     if (!imageBase64) {
       res.status(400).json({ success: false, error: 'Image base64 data is required' });

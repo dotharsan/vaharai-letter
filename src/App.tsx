@@ -52,7 +52,6 @@ import { LetterRegisterModal } from './components/LetterRegisterModal';
 import { LetterDetailAndChatModal } from './components/LetterDetailAndChatModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { CloudSyncSettingsModal } from './components/CloudSyncSettingsModal';
-import { InstitutionalAiReportModal } from './components/InstitutionalAiReportModal';
 import { VaharaiLogo } from './components/VaharaiLogo';
 
 // --- Google Sheets Cloud Integration Setup ---
@@ -1008,7 +1007,6 @@ export default function App() {
   });
 
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [isAiReportOpen, setIsAiReportOpen] = useState(false);
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
   const [isLetterEditMode, setIsLetterEditMode] = useState(false);
@@ -2089,17 +2087,6 @@ export default function App() {
               </button>
             )}
 
-            {/* AI Institutional Performance & Advisory Report Feature */}
-            <button
-              type="button"
-              onClick={() => setIsAiReportOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-violet-600 via-indigo-600 to-indigo-700 hover:from-violet-700 hover:to-indigo-800 active:scale-95 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition cursor-pointer min-h-[34px] border border-violet-400/40"
-              title="நிறுவன மேம்பாடு மற்றும் குறைபாடுகள் குறித்த AI அறிக்கை (AI Institutional Advisory Report)"
-            >
-              <Sparkles className="h-4 w-4 text-amber-300" />
-              <span>AI நிறுவன அறிக்கை</span>
-            </button>
-
             {/* Requirement: Letter Registrar (கடித பதிவாளர்) only - Backup Records to Cloud */}
             {isLetterRegistrar && (
               <button
@@ -2303,7 +2290,6 @@ export default function App() {
           currentUser={currentUser}
           onFilterByStatus={(st) => setActionFilter(st)}
           onFilterByDivision={(div) => setSelectedDivisionFilter(div)}
-          onOpenAiReport={() => setIsAiReportOpen(true)}
           currentStatusFilter={actionFilter}
         />
 
@@ -2680,15 +2666,6 @@ export default function App() {
           onRestoreBaseline={handleResetData}
         />
       )}
-
-      {/* AI Institutional Performance, Bottleneck & Advisory Report Modal */}
-      <InstitutionalAiReportModal
-        isOpen={isAiReportOpen}
-        onClose={() => setIsAiReportOpen(false)}
-        letters={letters}
-        allUsers={users}
-        currentUser={currentUser}
-      />
     </div>
   );
 }

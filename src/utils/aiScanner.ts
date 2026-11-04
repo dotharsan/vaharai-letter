@@ -74,34 +74,19 @@ export function sanitizeScanError(rawInput?: any): FormattedScanErrorDetail {
   }
 
   if (
-    lower.includes('access_token_type_unsupported') ||
-    lower.includes('unauthenticated') ||
     lower.includes('permission_denied') ||
     lower.includes('api_key_invalid') ||
     lower.includes('api key not valid') ||
-    lower.includes('unregistered callers') ||
-    lower.includes('aq.') ||
-    lower.includes('ya29.')
+    lower.includes('unregistered callers')
   ) {
-    const isOAuthToken =
-      lower.includes('access_token_type_unsupported') ||
-      lower.includes('token_type') ||
-      lower.includes('aq.') ||
-      lower.includes('ya29.');
     return {
       type: 'api_key_invalid',
-      title: isOAuthToken ? 'Invalid Key: OAuth Token Provided' : 'Gemini API Key Authentication Failed',
-      message: isOAuthToken
-        ? 'உள்ளிட்ட Key "AQ." எனத் தொடங்கும் OAuth Token ஆகும். AI OCR ஸ்கேனருக்கு "AIzaSy..." எனத் தொடங்கும் Google AI Studio API Key தேவை.'
-        : 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired Key).',
-      instructionTamil: isOAuthToken
-        ? 'Google AI Studio (aistudio.google.com/app/apikey) தளத்தில் "Create API Key" கொடுத்து "AIzaSy..." எனத் தொடங்கும் புதிய இலவச Gemini API Key-ஐப் பெற்று இங்கு உள்ளிடவும்.'
-        : 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
-      instructionEnglish: isOAuthToken
-        ? 'The key provided is an OAuth access token (starts with "AQ..."). Gemini OCR requires an API key starting with "AIzaSy..." from Google AI Studio.'
-        : 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
+      title: 'Gemini API Key Authentication Failed',
+      message: 'AI சேவையக API Key அங்கீகாரம் கிடைக்கவில்லை (Invalid or Expired Key).',
+      instructionTamil: 'Google AI Studio (aistudio.google.com/app/apikey) இல் புதிய API Key ஒன்றை உருவாக்கி உங்கள் தளத்தின் (Netlify / Server) Environment Variables இல் GEMINI_API_KEY ஆக உள்ளிடவும்.',
+      instructionEnglish: 'The Gemini API key is missing, invalid, or unauthorized. Please verify GEMINI_API_KEY in your hosting environment variables.',
       actionUrl: 'https://aistudio.google.com/app/apikey',
-      actionLabel: 'Get AIzaSy API Key',
+      actionLabel: 'Get API Key',
     };
   }
 
@@ -126,74 +111,15 @@ export function sanitizeScanError(rawInput?: any): FormattedScanErrorDetail {
   };
 }
 
-export const GEMINI_STORAGE_KEY = 'vaharai_gemini_api_key';
-
-export function getStoredGeminiApiKey(): string {
-  try {
-    if (typeof window !== 'undefined') {
-      const stored = (localStorage.getItem(GEMINI_STORAGE_KEY) || '').trim();
-      if (stored) return stored;
-    }
-  } catch {}
-
-  try {
-    // Check client-exposed env vars (baked in by Vite/Vercel)
-    const nextPublic = (import.meta as any)?.env?.NEXT_PUBLIC_GEMINI_API_KEY;
-    if (nextPublic && typeof nextPublic === 'string' && nextPublic.trim() && nextPublic.trim() !== 'MY_GEMINI_API_KEY') {
-      return nextPublic.trim();
-    }
-    const viteKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY;
-    if (viteKey && typeof viteKey === 'string' && viteKey.trim() && viteKey.trim() !== 'MY_GEMINI_API_KEY') {
-      return viteKey.trim();
-    }
-  } catch {}
-
-  return '';
-}
-
-export function setStoredGeminiApiKey(key: string): void {
-  try {
-    if (typeof window !== 'undefined') {
-      const clean = key.trim();
-      if (clean) {
-        localStorage.setItem(GEMINI_STORAGE_KEY, clean);
-      } else {
-        localStorage.removeItem(GEMINI_STORAGE_KEY);
-      }
-    }
-  } catch {}
-}
-
-export function clearStoredGeminiApiKey(): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(GEMINI_STORAGE_KEY);
-    }
-  } catch {}
-}
-
 /**
- * Sends letter image to backend Gemini OCR scanner with automatic fallback and optional client-stored key
+ * Sends letter image to backend Gemini OCR scanner with automatic fallback
  */
 export async function scanLetterWithAI(
   imageBase64: string,
-  mimeType = 'image/jpeg',
-  explicitApiKey?: string
+  mimeType = 'image/jpeg'
 ): Promise<ScanResult> {
-  const activeKey = (explicitApiKey || getStoredGeminiApiKey()).trim();
-
-  const payload = JSON.stringify({
-    imageBase64,
-    mimeType,
-    apiKey: activeKey || undefined,
-  });
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (activeKey) {
-    headers['x-gemini-api-key'] = activeKey;
-  }
+  const payload = JSON.stringify({ imageBase64, mimeType });
+  const headers = { 'Content-Type': 'application/json' };
 
   // Try standard Express route /api/scan-letter, then Netlify functions route if 404
   const endpoints = ['/api/scan-letter', '/.netlify/functions/scan-letter'];
@@ -216,11 +142,7 @@ export async function scanLetterWithAI(
         const detail = resJson.errorDetail || sanitizeScanError(resJson.error || resJson.message);
         return {
           success: false,
-          apiKeyMissing: Boolean(
-            resJson.apiKeyMissing ||
-              detail.type === 'billing_required' ||
-              detail.type === 'api_key_invalid'
-          ),
+          apiKeyMissing: Boolean(resJson.apiKeyMissing || detail.type === 'billing_required' || detail.type === 'api_key_invalid'),
           errorType: resJson.errorType || detail.type,
           error: detail.message,
           errorDetail: detail,
@@ -236,9 +158,7 @@ export async function scanLetterWithAI(
     }
   }
 
-  const fallbackDetail = sanitizeScanError(
-    'கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.'
-  );
+  const fallbackDetail = sanitizeScanError('கடிதப் புகைப்படம் இணைக்கப்பட்டுள்ளது. தகவல்களை நேரடியாக உள்ளிட்டு சேமிக்கலாம்.');
   return {
     success: false,
     error: fallbackDetail.message,
