@@ -7,7 +7,7 @@ export const handler = async (event: any) => {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Gemini-Api-Key, x-gemini-api-key, Authorization',
       },
       body: '',
     };
@@ -32,7 +32,18 @@ export const handler = async (event: any) => {
       };
     }
 
-    const effectiveKey = (process.env.GEMINI_API_KEY || '').trim();
+    const headerKey = (event.headers?.['x-gemini-api-key'] || event.headers?.['X-Gemini-Api-Key'] || '').trim();
+    const bodyKey = (body.apiKey ? String(body.apiKey) : '').trim();
+    const envKey = (
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      ''
+    ).trim();
+
+    const effectiveKey = (headerKey || bodyKey || envKey).trim();
     if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY') {
       return {
         statusCode: 200,
